@@ -3,7 +3,7 @@ const express= require("express");
 const ejs= require("ejs");
 const bodyParser= require("body-parser");
 const mongoose= require("mongoose");
-const encrypt= require("mongoose-encryption");
+var md5 = require('md5');
 
 
 const app=express();
@@ -19,7 +19,7 @@ const userSchema = new mongoose.Schema({
     password: String
 });
 
-userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ['password']  });
+// userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ['password']  });
 
 const user = new mongoose.model('user', userSchema);
 
@@ -54,13 +54,13 @@ app.post("/register", function(req,res){
 
 app.post("/login", function(req,res){
     const cemail=req.body.email;
-    const cpassword=req.body.password;
+    const cpassword=md5(req.body.password);
 
     user.find({"email":cemail},function(err,foundUser){
         if(err){
             console.log("user not registered");
         }else if(foundUser){
-            if(req.body.password===cpassword){
+            if(md5(req.body.password)===cpassword){
                 console.log("Matched");
                 res.render("secrets");
             }
