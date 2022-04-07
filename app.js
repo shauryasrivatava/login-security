@@ -3,8 +3,8 @@ const express= require("express");
 const ejs= require("ejs");
 const bodyParser= require("body-parser");
 const mongoose= require("mongoose");
-var md5 = require('md5');
-
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
 
 const app=express();
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -14,14 +14,14 @@ app.set('view engine', 'ejs');
 
 mongoose.connect('mongodb://localhost:27017/userDB');
 
-const userSchema = new mongoose.Schema({ 
-    email: String, 
-    password: String
+const userSchema = mongoose.Schema({ 
+    email: "string", 
+    password: "string"
 });
 
 // userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ['password']  });
 
-const user = new mongoose.model('user', userSchema);
+const User = new mongoose.model('User', userSchema);
 
 app.get("/login",function(req,res){
     res.render('login');
@@ -36,33 +36,43 @@ app.get("/",function(req,res){
 })
 
 app.post("/register", function(req,res){
-    const cemail=req.body.email;
-    const cpassword=req.body.password;
 
-    const newUser = new user({ 
-        email: cemail,
-        password: cpassword
-     });
-    newUser.save(function (err) {
-    if (err) console.log(err);
-    else {
-        console.log("New User Registerd");
-        res.render("login");
-    }
+    bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
+        // Store hash in your password DB.
+        const newUser = new User({ 
+            email: req.body.userName,
+            password: hash
+         });
+         console.log(req.body.email);
+        newUser.save(function (err) {
+        if (err) console.log(err);
+        else {
+            console.log("New User Registerd");
+            res.render("login");
+        }
+        });
     });
 })
 
 app.post("/login", function(req,res){
-    const cemail=req.body.email;
-    const cpassword=md5(req.body.password);
+    const cemail=req.body.usernName;
+    const cpassword=req.body.password;
 
-    user.find({"email":cemail},function(err,foundUser){
+    User.findOne({email:cemail},function(err,foundUser){
         if(err){
             console.log("user not registered");
-        }else if(foundUser){
-            if(md5(req.body.password)===cpassword){
-                console.log("Matched");
-                res.render("secrets");
+        }else {
+            if(foundUser){
+                bcrypt.compare(cpassword, foundUser.password, function(err, result) {
+                    // result == true
+                    if(result===true){
+                        console.log("Matched");
+                        res.render("secrets");
+                    }else {
+                        console.log("wrong password"+foundUser.email)
+                        console.log(foundUser);
+                    };
+                });
             }
         }
     })
