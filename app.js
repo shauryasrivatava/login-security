@@ -29,7 +29,8 @@ mongoose.connect('mongodb://localhost:27017/userDB');
 const userSchema = new mongoose.Schema({ 
     email: String, 
     password: String,
-    googleId: String
+    googleId: String,
+    secret: String
 });
 
 userSchema.plugin(passportLocalMongoose);
@@ -50,11 +51,12 @@ passport.serializeUser(function(user, done) {
 passport.use(new GoogleStrategy({
     clientID: process.env.CLIENT_ID,
     clientSecret: process.env.CLIENT_SECRET,
-    callbackURL: "http://localhost:3000/auth/google/secrets"
+    callbackURL: "http://localhost:3000/auth/google/secrets",
+    userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo"
   },
   function(accessToken, refreshToken, profile, cb) {
-      console.log(profile);
-    User.findOrCreate({ googleId: profile.id }, function (err, user) {
+    //   console.log(profile);
+    User.findOrCreate({ username:profile.emails[0].value, googleId: profile.id }, function (err, user) {
       return cb(err, user);
     });
   }
@@ -73,7 +75,7 @@ app.get("/",function(req,res){
 })
 
 app.get('/auth/google',
-  passport.authenticate('google', { scope: ['profile'] })
+  passport.authenticate('google', { scope: ['profile','email'] })
 );
 
 app.get('/auth/google/secrets', 
@@ -84,11 +86,15 @@ app.get('/auth/google/secrets',
 });
 
 app.get('/secrets',function(req,res){
-    if(req.isAuthenticated()){
-        res.render('secrets');
-    }else{
-        console.log("Failed")
-    }
+    // console.log(req);
+    User.find({'secret': {$ne:null}}, function(err, found){
+        if(err){
+            console.log(err);
+        }else{
+            console.log(found);
+            res.render('secrets', {users:found})
+        }
+    })
 })
 app.post("/register", function(req,res){
     User.register({username: req.body.username}, req.body.password, function(err, user) {
@@ -125,6 +131,33 @@ app.post("/login", function(req,res){
         }
     })
 
+})
+
+app.get('/submit',function(req,res){
+    if(req.isAuthenticated()){
+        res.render('submit');
+    }else{
+        console.log("Failed")
+    }
+})
+
+app.post('/submit',function(req,res){
+    const id=req.user._id
+    const submittedsecret=req.body.secret;
+    User.findById(id,function(err, result){
+        if(err){
+            console.log(err);
+            res.redirect('/login');
+        }
+        else{
+            if(result){
+                result.secret=submittedsecret;
+                result.save(function(){
+                    res.redirect('/secrets');
+                })
+            }
+        }
+    })
 })
 
 app.listen(3000,function(req,res){
